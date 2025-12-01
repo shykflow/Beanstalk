@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  timezone  String   @default("Asia/Karachi")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  users     User[]
+  schedule  Schedule?
+
+  @@map("organizations")
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String   @map("org_id") @db.Uuid
+  email        String   @unique @db.Citext
+  passwordHash String   @map("password_hash")
+  fullName     String?  @map("full_name")
+  role         UserRole
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization      Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deviceSessions    DeviceSession[]
+  activitySamples   ActivitySample[]
+  timeEntries       TimeEntry[]
+  adjustments       Adjustment[]      @relation("UserAdjustments")
+  createdAdjustments Adjustment[]     @relation("CreatedByAdjustments")
+  refreshTokens     RefreshToken[]
+
+  @@index([orgId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model DeviceSession {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  deviceId  String    @map("device_id")
+  platform  String
+  startedAt DateTime  @map("started_at") @db.Timestamptz
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activitySamples ActivitySample[]
+
+  @@unique([userId, deviceId, startedAt])
+  @@map("device_sessions")
+}
+
+model ActivitySample {
+  id               BigInt    @id @default(autoincrement())
+  userId           String    @map("user_id") @db.Uuid
+  capturedAt       DateTime  @map("captured_at") @db.Timestamptz
+  mouseDelta       Int       @map("mouse_delta")
+  keyCount         Int       @map("key_count")
+  deviceSessionId  String?   @map("device_session_id") @db.Uuid
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceSession DeviceSession? @relation(fields: [deviceSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, capturedAt])
+  @@map("activity_samples")
+}
+
+model TimeEntry {
+  id        BigInt          @id @default(autoincrement())
+  userId    String          @map("user_id") @db.Uuid
+  startedAt DateTime        @map("started_at") @db.Timestamptz
+  endedAt   DateTime        @map("ended_at") @db.Timestamptz
+  kind      TimeEntryKind
+  source    TimeEntrySource @default(AUTO)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@map("time_entries")
+}
+
+model Schedule {
+  orgId                 String @id @map("org_id") @db.Uuid
+  tz                    String @default("Asia/Karachi")
+  checkinStart          String @default("16:50") @map("checkin_start")
+  checkinEnd            String @default("02:00") @map("checkin_end")
+  breakStart            String @default("22:00") @map("break_start")
+  breakEnd              String @default("23:00") @map("break_end")
+  idleThresholdSeconds  Int    @default(300) @map("idle_threshold_seconds")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("schedules")
+}
+
+model Adjustment {
+  id            BigInt   @id @default(autoincrement())
+  userId        String   @map("user_id") @db.Uuid
+  createdBy     String   @map("created_by") @db.Uuid
+  reason        String
+  deltaMinutes  Int      @map("delta_minutes")
+  effectiveDate DateTime @map("effective_date") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user    User @relation("UserAdjustments", fields: [userId], references: [id], onDelete: Cascade)
+  creator User @relation("CreatedByAdjustments", fields: [createdBy], references: [id])
+
+  @@map("adjustments")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum TimeEntryKind {
+  ACTIVE
+  IDLE
+  BREAK
+}
+
+enum TimeEntrySource {
+  AUTO
+  MANUAL
+}
