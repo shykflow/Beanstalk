@@ -29,13 +29,16 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const token = this.getToken()
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
     }
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
+    }
+
+    if (options.headers) {
+      Object.assign(headers, options.headers)
     }
 
     const response = await fetch(`${API_URL}${endpoint}`, {
@@ -94,6 +97,10 @@ class ApiClient {
   async logout() {
     await this.request('/auth/logout', { method: 'POST' })
     this.clearToken()
+  }
+
+  async getCurrentUser() {
+    return this.request<any>('/auth/me')
   }
 
   // Users
