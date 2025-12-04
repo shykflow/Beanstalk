@@ -41,4 +41,9 @@ export class ActivityController {
       limit ? parseInt(limit) : 100,
     );
   }
+
+  @Post('rollup')
+  async triggerRollup(@Request() req) {
+    return this.activityService.triggerRollup(req.user.id);
+  }
 }

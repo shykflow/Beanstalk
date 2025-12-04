@@ -8,4 +8,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopTracking: () => ipcRenderer.invoke('stop-tracking'),
   getStatus: () => ipcRenderer.invoke('get-status'),
   getAuth: () => ipcRenderer.invoke('get-auth'),
+  getOrganization: () => ipcRenderer.invoke('get-organization'),
+  getSchedule: () => ipcRenderer.invoke('get-schedule'),
 })

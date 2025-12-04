@@ -2,6 +2,7 @@
   "name": "@time-tracker/desktop",
   "version": "1.0.0",
   "description": "Time Tracker Desktop App",
+  "author": "Dexterz Technologies",
   "main": "dist/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
@@ -13,9 +14,9 @@
     "package": "electron-builder"
   },
   "dependencies": {
-    "@time-tracker/shared": "*",
     "electron-store": "^8.1.0",
-    "electron-updater": "^6.1.7"
+    "electron-updater": "^6.1.7",
+    "uiohook-napi": "^1.5.3"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
@@ -23,8 +24,8 @@
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^8.2.2",
-    "electron": "^28.1.0",
-    "electron-builder": "^24.9.1",
+    "electron": "28.1.0",
+    "electron-builder": "^26.0.12",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "typescript": "^5.3.3",
@@ -42,10 +43,17 @@
       "output": "release"
     },
     "mac": {
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ]
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "signAndEditExecutable": false
     },
     "linux": {
       "target": "AppImage"

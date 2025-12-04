@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, differenceInMinutes } from 'date-fns';
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, differenceInMinutes, addDays, parse } from 'date-fns';
+import { zonedTimeToUtc, utcToZonedTime, format } from 'date-fns-tz';
 
 @Injectable()
 export class ReportsService {
@@ -42,8 +43,31 @@ export class ReportsService {
   }
 
   async getDailyReport(orgId: string, date: Date) {
-    const from = startOfDay(date);
-    const to = endOfDay(date);
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      include: { schedule: true },
+    });
+
+    if (!org?.schedule) {
+      throw new Error('Organization schedule not configured');
+    }
+
+    const schedule = org.schedule;
+    const dateStr = date.toISOString().split('T')[0];
+    
+    // Working day boundaries: dateStr at checkinStart to next day at checkinEnd
+    const startStr = `${dateStr} ${schedule.checkinStart}`;
+    const from = zonedTimeToUtc(startStr, schedule.tz);
+    
+    const nextDay = format(addDays(parse(dateStr, 'yyyy-MM-dd', new Date()), 1), 'yyyy-MM-dd');
+    const endStr = `${nextDay} ${schedule.checkinEnd}`;
+    const to = zonedTimeToUtc(endStr, schedule.tz);
+    
+    console.log('📅 Daily Report Query (Working Day):');
+    console.log('  Working Date:', dateStr);
+    console.log('  Schedule:', `${schedule.checkinStart} - ${schedule.checkinEnd}`);
+    console.log('  From:', from.toISOString());
+    console.log('  To:', to.toISOString());
 
     const users = await this.prisma.user.findMany({
       where: { orgId, isActive: true },
@@ -64,6 +88,12 @@ export class ReportsService {
         },
         orderBy: { startedAt: 'asc' },
       });
+      
+      if (entries.length > 0) {
+        console.log(`  User ${user.fullName}: ${entries.length} entries`);
+        console.log(`    First entry: ${entries[0].startedAt.toISOString()}`);
+        console.log(`    Last entry: ${entries[entries.length - 1].endedAt.toISOString()}`);
+      }
 
       let totalMinutes = 0;
       let activeMinutes = 0;
@@ -141,6 +171,11 @@ export class ReportsService {
   }
 
   async getUserTimesheet(userId: string, from: Date, to: Date) {
+    console.log('📊 User Timesheet Query:');
+    console.log('  UserId:', userId);
+    console.log('  From:', from.toISOString());
+    console.log('  To:', to.toISOString());
+    
     const entries = await this.prisma.timeEntry.findMany({
       where: {
         userId,
@@ -149,6 +184,12 @@ export class ReportsService {
       },
       orderBy: { startedAt: 'asc' },
     });
+    
+    console.log(`  Found ${entries.length} entries`);
+    if (entries.length > 0) {
+      console.log(`  First: ${entries[0].startedAt.toISOString()}`);
+      console.log(`  Last: ${entries[entries.length - 1].endedAt.toISOString()}`);
+    }
 
     const adjustments = await this.prisma.adjustment.findMany({
       where: {
@@ -181,5 +222,30 @@ export class ReportsService {
         id: a.id.toString(),
       })),
     };
+  }
+
+  async getUserTimesheetWithTimezone(userId: string, from: string, to: string, timezone?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { organization: { include: { schedule: true } } },
+    });
+
+    if (!user?.organization?.schedule) {
+      throw new Error('Organization schedule not configured');
+    }
+
+    const schedule = user.organization.schedule;
+    const tz = timezone || schedule.tz;
+    
+    // Working day boundaries for from date
+    const fromStartStr = `${from} ${schedule.checkinStart}`;
+    const fromDate = zonedTimeToUtc(fromStartStr, tz);
+    
+    // Working day boundaries for to date (end is next day at checkinEnd)
+    const toNextDay = format(addDays(parse(to, 'yyyy-MM-dd', new Date()), 1), 'yyyy-MM-dd');
+    const toEndStr = `${toNextDay} ${schedule.checkinEnd}`;
+    const toDate = zonedTimeToUtc(toEndStr, tz);
+
+    return this.getUserTimesheet(userId, fromDate, toDate);
   }
 }

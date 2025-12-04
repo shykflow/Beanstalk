@@ -9,10 +9,12 @@ async function main() {
   // Create organization
   const org = await prisma.organization.upsert({
     where: { id: '00000000-0000-0000-0000-000000000001' },
-    update: {},
+    update: {
+      name: 'Dexterz Technologies',
+    },
     create: {
       id: '00000000-0000-0000-0000-000000000001',
-      name: 'Demo Organization',
+      name: 'Dexterz Technologies',
       timezone: 'Asia/Karachi',
     },
   })

@@ -15,10 +15,17 @@
     "build:desktop": "npm run build --workspace=apps/desktop",
     "prisma:generate": "npm run prisma:generate --workspace=apps/backend",
     "prisma:migrate": "npm run prisma:migrate --workspace=apps/backend",
-    "prisma:studio": "npm run prisma:studio --workspace=apps/backend"
+    "prisma:studio": "npm run prisma:studio --workspace=apps/backend",
+    "export": "next export"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "date-fns": "^2.30.0",
+    "date-fns-tz": "^2.0.0",
+    "lru-cache": "^11.2.4",
+    "os-tmpdir": "^1.0.2"
   }
 }

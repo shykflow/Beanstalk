@@ -1,12 +1,25 @@
-import { ActivityBatchItem } from '@time-tracker/shared'
+export interface ActivityBatchItem {
+  capturedAt: string
+  mouseDelta: number
+  keyCount: number
+  deviceSessionId?: string
+}
 
 const API_URL = process.env.API_URL || 'http://localhost:3001/api'
 
 export class ApiClient {
   private token: string | null = null
+  
+  get tokenValue(): string | null {
+    return this.token
+  }
 
   setToken(token: string) {
     this.token = token
+  }
+
+  clearToken() {
+    this.token = null
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -49,8 +62,14 @@ export class ApiClient {
   }
 
   async logout() {
-    await this.request('/auth/logout', { method: 'POST' })
-    this.token = null
+    try {
+      await this.request('/auth/logout', { method: 'POST' })
+    } catch (error) {
+      console.error('Logout API call failed:', error)
+      // Continue with token clearing even if API call fails
+    } finally {
+      this.token = null
+    }
   }
 
   async startSession(data: { deviceId: string; platform: string }) {
@@ -71,6 +90,27 @@ export class ApiClient {
     return this.request('/activity/batch', {
       method: 'POST',
       body: JSON.stringify({ samples }),
+    })
+  }
+
+  async getOrganization() {
+    return this.request<{ id: string; name: string; timezone: string }>('/organizations/me')
+  }
+
+  async getSchedule() {
+    return this.request<{
+      tz: string
+      checkinStart: string
+      checkinEnd: string
+      breakStart: string
+      breakEnd: string
+      idleThresholdSeconds: number
+    }>('/organizations/schedule')
+  }
+
+  async triggerRollup() {
+    return this.request('/activity/rollup', {
+      method: 'POST',
     })
   }
 }

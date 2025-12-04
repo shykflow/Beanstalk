@@ -4,7 +4,6 @@ import {
   isWithinCheckinWindow,
   isWithinBreakWindow,
   hasActivity,
-  DEFAULT_RULES,
 } from '@time-tracker/shared';
 import { startOfMinute, addMinutes, isBefore, isAfter } from 'date-fns';
 
@@ -19,8 +18,11 @@ export class RollupService {
   constructor(private prisma: PrismaService) {}
 
   async rollupUserActivity(userId: string, from: Date, to: Date) {
-    // Get user's organization schedule
-    const user = await this.prisma.user.findUnique({
+    try {
+      console.log(`🔄 Starting rollup for user ${userId} from ${from.toISOString()} to ${to.toISOString()}`);
+      
+      // Get user's organization schedule
+      const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
         organization: {
@@ -30,17 +32,16 @@ export class RollupService {
     });
 
     if (!user) {
+      console.error('❌ User not found:', userId);
       return;
     }
 
-    const schedule = user.organization.schedule || {
-      tz: DEFAULT_RULES.timezone,
-      checkinStart: DEFAULT_RULES.checkinWindow.start,
-      checkinEnd: DEFAULT_RULES.checkinWindow.end,
-      breakStart: DEFAULT_RULES.breakWindow.start,
-      breakEnd: DEFAULT_RULES.breakWindow.end,
-      idleThresholdSeconds: DEFAULT_RULES.idleThresholdSeconds,
-    };
+    if (!user.organization.schedule) {
+      console.error('❌ Organization schedule not configured for user:', userId);
+      return;
+    }
+
+    const schedule = user.organization.schedule;
 
     const rules = {
       timezone: schedule.tz,
@@ -67,20 +68,22 @@ export class RollupService {
       orderBy: { capturedAt: 'asc' },
     });
 
+    console.log(`📊 Found ${samples.length} samples to process`);
+
     if (samples.length === 0) {
+      console.log('⚠️ No samples to process');
       return;
     }
 
     // Group samples by minute
     const minuteBuckets = this.groupByMinute(samples);
 
-    // Process each minute
-    const entries: Array<{
+    // Process each minute and determine ACTIVE/IDLE
+    const minuteEntries: Array<{
       userId: string;
       startedAt: Date;
       endedAt: Date;
-      kind: 'ACTIVE' | 'IDLE';
-      source: 'AUTO';
+      hasActivity: boolean;
     }> = [];
 
     for (const bucket of minuteBuckets) {
@@ -97,39 +100,86 @@ export class RollupService {
       // Check if minute has activity
       const active = bucket.samples.some((s) => hasActivity(s.mouseDelta, s.keyCount));
 
-      if (active) {
-        entries.push({
-          userId,
-          startedAt: bucket.start,
-          endedAt: bucket.end,
-          kind: 'ACTIVE',
-          source: 'AUTO',
-        });
-      }
+      minuteEntries.push({
+        userId,
+        startedAt: bucket.start,
+        endedAt: bucket.end,
+        hasActivity: active,
+      });
     }
 
-    // Merge contiguous active minutes
+    // Apply idle threshold logic
+    console.log(`🎯 Applying idle threshold: ${rules.idleThresholdSeconds}s (${Math.floor(rules.idleThresholdSeconds / 60)} minutes)`);
+    const entries = this.applyIdleThreshold(minuteEntries, rules.idleThresholdSeconds);
+
+    // Merge contiguous same-type minutes
     const merged = this.mergeContiguous(entries);
 
-    // Delete existing entries in this range and insert new ones
+    // Smart merge: only extend same kind, replace different kind
     await this.prisma.$transaction(async (tx) => {
-      await tx.timeEntry.deleteMany({
-        where: {
-          userId,
-          startedAt: { gte: from },
-          endedAt: { lte: to },
-          source: 'AUTO',
-        },
-      });
+      if (merged.length === 0) return;
 
-      if (merged.length > 0) {
-        await tx.timeEntry.createMany({
-          data: merged,
+      for (const newEntry of merged) {
+        // Find adjacent entry of SAME kind
+        const adjacent = await tx.timeEntry.findFirst({
+          where: {
+            userId,
+            source: 'AUTO',
+            kind: newEntry.kind,
+            OR: [
+              { endedAt: newEntry.startedAt },
+              { startedAt: newEntry.endedAt },
+            ],
+          },
         });
-      }
-    });
 
+        // Find overlapping entries of ANY kind (but exclude adjacent entry)
+        const overlapping = await tx.timeEntry.findMany({
+          where: {
+            userId,
+            source: 'AUTO',
+            id: adjacent ? { not: adjacent.id } : undefined,
+            OR: [
+              { startedAt: { gte: newEntry.startedAt, lt: newEntry.endedAt } },
+              { endedAt: { gt: newEntry.startedAt, lte: newEntry.endedAt } },
+              { startedAt: { lt: newEntry.startedAt }, endedAt: { gt: newEntry.endedAt } },
+            ],
+          },
+        });
+
+        // Delete ONLY truly overlapping entries (not adjacent)
+        if (overlapping.length > 0) {
+          await tx.timeEntry.deleteMany({
+            where: { id: { in: overlapping.map(e => e.id) } },
+          });
+          console.log(`🗑️  Deleted ${overlapping.length} overlapping entries`);
+        }
+
+        // Extend adjacent entry of same kind
+        if (adjacent) {
+          const newStart = adjacent.startedAt < newEntry.startedAt ? adjacent.startedAt : newEntry.startedAt;
+          const newEnd = adjacent.endedAt > newEntry.endedAt ? adjacent.endedAt : newEntry.endedAt;
+          
+          await tx.timeEntry.update({
+            where: { id: adjacent.id },
+            data: { startedAt: newStart, endedAt: newEnd },
+          });
+          console.log(`🔄 Extended ${newEntry.kind}: ${newStart.toISOString()} to ${newEnd.toISOString()}`);
+        } else {
+          // Create new entry
+          await tx.timeEntry.create({ data: newEntry });
+          console.log(`➕ Created ${newEntry.kind}: ${newEntry.startedAt.toISOString()} to ${newEntry.endedAt.toISOString()}`);
+        }
+      }
+    }, { timeout: 15000 });
+
+    console.log(`✅ Rollup complete: Processed ${merged.length} entries`);
+    
     return { processed: merged.length };
+    } catch (error) {
+      console.error('❌ Rollup failed:', error);
+      throw error;
+    }
   }
 
   private groupByMinute(
@@ -161,6 +211,109 @@ export class RollupService {
     }
 
     return Array.from(buckets.values()).sort((a, b) => a.start.getTime() - b.start.getTime());
+  }
+
+  private applyIdleThreshold(
+    minuteEntries: Array<{
+      userId: string;
+      startedAt: Date;
+      endedAt: Date;
+      hasActivity: boolean;
+    }>,
+    idleThresholdSeconds: number,
+  ): Array<{
+    userId: string;
+    startedAt: Date;
+    endedAt: Date;
+    kind: 'ACTIVE' | 'IDLE';
+    source: 'AUTO';
+  }> {
+    const entries: Array<{
+      userId: string;
+      startedAt: Date;
+      endedAt: Date;
+      kind: 'ACTIVE' | 'IDLE';
+      source: 'AUTO';
+    }> = [];
+
+    const idleThresholdMinutes = Math.floor(idleThresholdSeconds / 60);
+    let consecutiveIdleCount = 0;
+    let pendingIdleEntries: Array<typeof entries[0]> = [];
+
+    console.log(`📋 Processing ${minuteEntries.length} minute entries with threshold ${idleThresholdMinutes} minutes`);
+
+    for (let i = 0; i < minuteEntries.length; i++) {
+      const entry = minuteEntries[i];
+
+      if (entry.hasActivity) {
+        // Active minute - reset idle counter and flush pending as ACTIVE
+        console.log(`  ✅ Minute ${i + 1}: ACTIVE (has activity) - reset idle counter`);
+        
+        // Flush pending idle entries as ACTIVE (below threshold)
+        if (pendingIdleEntries.length > 0) {
+          console.log(`    → Flushing ${pendingIdleEntries.length} pending minutes as ACTIVE`);
+          entries.push(...pendingIdleEntries);
+          pendingIdleEntries = [];
+        }
+        consecutiveIdleCount = 0;
+        
+        entries.push({
+          userId: entry.userId,
+          startedAt: entry.startedAt,
+          endedAt: entry.endedAt,
+          kind: 'ACTIVE',
+          source: 'AUTO',
+        });
+      } else {
+        // Idle minute - increment counter
+        consecutiveIdleCount++;
+        console.log(`  ⏸️  Minute ${i + 1}: No activity - consecutive idle: ${consecutiveIdleCount}/${idleThresholdMinutes}`);
+
+        // If already past threshold, directly add as IDLE
+        if (consecutiveIdleCount > idleThresholdMinutes) {
+          console.log(`    → Already past threshold, adding as IDLE`);
+          entries.push({
+            userId: entry.userId,
+            startedAt: entry.startedAt,
+            endedAt: entry.endedAt,
+            kind: 'IDLE',
+            source: 'AUTO',
+          });
+        } else {
+          // Add to pending
+          const pendingEntry = {
+            userId: entry.userId,
+            startedAt: entry.startedAt,
+            endedAt: entry.endedAt,
+            kind: 'ACTIVE' as const,
+            source: 'AUTO' as const,
+          };
+          pendingIdleEntries.push(pendingEntry);
+
+          // If threshold just reached, convert all pending to IDLE
+          if (consecutiveIdleCount === idleThresholdMinutes) {
+            console.log(`    → Threshold reached! Converting ${pendingIdleEntries.length} minutes to IDLE`);
+            
+            // Convert all pending entries to IDLE and add to entries
+            const idleEntries = pendingIdleEntries.map(e => ({ ...e, kind: 'IDLE' as const }));
+            entries.push(...idleEntries);
+            pendingIdleEntries = [];
+          }
+        }
+      }
+    }
+
+    // Flush remaining pending entries as ACTIVE (didn't reach threshold)
+    if (pendingIdleEntries.length > 0) {
+      console.log(`  → Flushing ${pendingIdleEntries.length} pending minutes as ACTIVE (threshold not reached)`);
+      entries.push(...pendingIdleEntries);
+    }
+
+    const activeCount = entries.filter(e => e.kind === 'ACTIVE').length;
+    const idleCount = entries.filter(e => e.kind === 'IDLE').length;
+    console.log(`📊 Result: ${activeCount} ACTIVE, ${idleCount} IDLE entries`);
+
+    return entries;
   }
 
   private mergeContiguous(

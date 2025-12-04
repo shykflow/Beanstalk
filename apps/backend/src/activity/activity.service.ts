@@ -2,11 +2,11 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
+import { RollupService } from './rollup.service';
 import { ActivityBatchItem } from '@time-tracker/shared';
 import {
   isWithinCheckinWindow,
   isWithinBreakWindow,
-  DEFAULT_RULES,
 } from '@time-tracker/shared';
 
 @Injectable()
@@ -14,6 +14,7 @@ export class ActivityService {
   constructor(
     private prisma: PrismaService,
     @InjectQueue('activity-rollup') private rollupQueue: Queue,
+    private rollupService: RollupService,
   ) {}
 
   async startSession(userId: string, deviceId: string, platform: string) {
@@ -43,21 +44,41 @@ export class ActivityService {
   }
 
   async stopSession(sessionId: string) {
-    const session = await this.prisma.deviceSession.update({
+    const session = await this.prisma.deviceSession.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new BadRequestException('Session not found');
+    }
+
+    const updatedSession = await this.prisma.deviceSession.update({
       where: { id: sessionId },
       data: { endedAt: new Date() },
     });
 
-    // Trigger rollup for this session
-    await this.rollupQueue.add('rollup-session', {
-      userId: session.userId,
-      sessionId: session.id,
-    });
+    // Trigger final rollup for session time range to process any remaining samples
+    const from = session.startedAt;
+    const to = new Date();
 
-    return session;
+    try {
+      await this.rollupQueue.add('rollup-user', {
+        userId: session.userId,
+        from,
+        to,
+      });
+      console.log(`🔄 Queued final rollup for session ${sessionId}`);
+    } catch (error) {
+      console.log(`⚠️ Redis unavailable, running final rollup directly`);
+      await this.rollupService.rollupUserActivity(session.userId, from, to);
+    }
+
+    return updatedSession;
   }
 
   async batchUpload(userId: string, samples: ActivityBatchItem[]) {
+    console.log(`📥 Received batch upload: ${samples.length} samples from user ${userId}`);
+    
     if (samples.length === 0) {
       return { inserted: 0 };
     }
@@ -76,14 +97,11 @@ export class ActivityService {
       throw new BadRequestException('User not found');
     }
 
-    const schedule = user.organization.schedule || {
-      tz: DEFAULT_RULES.timezone,
-      checkinStart: DEFAULT_RULES.checkinWindow.start,
-      checkinEnd: DEFAULT_RULES.checkinWindow.end,
-      breakStart: DEFAULT_RULES.breakWindow.start,
-      breakEnd: DEFAULT_RULES.breakWindow.end,
-      idleThresholdSeconds: DEFAULT_RULES.idleThresholdSeconds,
-    };
+    if (!user.organization.schedule) {
+      throw new BadRequestException('Organization schedule not configured');
+    }
+
+    const schedule = user.organization.schedule;
 
     const rules = {
       timezone: schedule.tz,
@@ -98,20 +116,33 @@ export class ActivityService {
       idleThresholdSeconds: schedule.idleThresholdSeconds,
     };
 
+    console.log(`⏰ Schedule: Check-in ${schedule.checkinStart}-${schedule.checkinEnd}, Break ${schedule.breakStart}-${schedule.breakEnd}, TZ: ${schedule.tz}`);
+    
     // Filter and validate samples
-    const validSamples = samples.filter((sample) => {
+    // Only reject samples outside working hours or during break
+    // IDLE samples are accepted and will be marked as IDLE during rollup
+    const validSamples = samples.filter((sample, index) => {
       const timestamp = new Date(sample.capturedAt);
+      const isInCheckin = isWithinCheckinWindow(timestamp, rules);
+      const isInBreak = isWithinBreakWindow(timestamp, rules);
+      
+      if (index === 0) {
+        console.log(`🔍 Sample check: Time=${timestamp.toISOString()}, InCheckin=${isInCheckin}, InBreak=${isInBreak}`);
+      }
 
       // Reject if outside check-in window
-      if (!isWithinCheckinWindow(timestamp, rules)) {
+      if (!isInCheckin) {
+        if (index === 0) console.log(`❌ Rejected: Outside check-in window`);
         return false;
       }
 
       // Reject if during break
-      if (isWithinBreakWindow(timestamp, rules)) {
+      if (isInBreak) {
+        if (index === 0) console.log(`❌ Rejected: During break time`);
         return false;
       }
 
+      // Accept all samples within working hours (both ACTIVE and IDLE)
       return true;
     });
 
@@ -127,15 +158,30 @@ export class ActivityService {
         })),
       });
 
-      // Queue rollup job
-      await this.rollupQueue.add('rollup-user', {
-        userId,
-        from: new Date(validSamples[0].capturedAt),
-        to: new Date(validSamples[validSamples.length - 1].capturedAt),
-      });
+      console.log(`✅ Inserted ${validSamples.length} samples into database`);
+
+      // Expand time range to include previous entries for merging
+      const firstSampleTime = new Date(validSamples[0].capturedAt);
+      const lastSampleTime = new Date(validSamples[validSamples.length - 1].capturedAt);
+      
+      // Process from 5 minutes before first sample to allow merging with previous entries
+      const from = new Date(firstSampleTime.getTime() - 5 * 60 * 1000);
+      const to = lastSampleTime;
+
+      // Try queue, fallback to direct call if Redis fails
+      try {
+        await this.rollupQueue.add('rollup-user', { userId, from, to });
+        console.log(`🔄 Queued rollup job for user ${userId}`);
+      } catch (error) {
+        console.log(`⚠️ Redis unavailable, running rollup directly`);
+        await this.rollupService.rollupUserActivity(userId, from, to);
+      }
     }
 
-    return { inserted: validSamples.length, rejected: samples.length - validSamples.length };
+    const result = { inserted: validSamples.length, rejected: samples.length - validSamples.length };
+    console.log(`📊 Result: Inserted ${result.inserted}, Rejected ${result.rejected}`);
+    
+    return result;
   }
 
   async getRecentActivity(userId: string, limit: number = 100) {
@@ -144,5 +190,24 @@ export class ActivityService {
       orderBy: { capturedAt: 'desc' },
       take: limit,
     });
+  }
+
+  async triggerRollup(userId: string) {
+    const now = new Date();
+    const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+    
+    try {
+      await this.rollupQueue.add('rollup-user', {
+        userId,
+        from: twoMinutesAgo,
+        to: now,
+      });
+      console.log(`🔄 Rollup queued for user ${userId}`);
+      return { success: true, message: 'Rollup triggered' };
+    } catch (error) {
+      console.log(`⚠️ Redis unavailable, running rollup directly`);
+      await this.rollupService.rollupUserActivity(userId, twoMinutesAgo, now);
+      return { success: true, message: 'Rollup completed directly' };
+    }
   }
 }

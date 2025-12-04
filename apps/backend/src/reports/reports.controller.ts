@@ -75,12 +75,40 @@ export class ReportsController {
     @Query('userId', ParseUUIDPipe) userId: string,
     @Query('from') from: string,
     @Query('to') to: string,
+    @Query('timezone') timezone?: string,
   ) {
-    return this.reportsService.getUserTimesheet(
+    return this.reportsService.getUserTimesheetWithTimezone(
       userId,
-      new Date(from),
-      new Date(to),
+      from,
+      to,
+      timezone,
     );
+  }
+
+  @Get('my-today')
+  async getMyToday(@Request() req) {
+    const today = new Date().toISOString().split('T')[0];
+    const from = new Date(today + 'T00:00:00.000Z');
+    const to = new Date(today + 'T23:59:59.999Z');
+    
+    const entries = await this.reportsService.getUserTimesheet(
+      req.user.sub,
+      from,
+      to,
+    );
+    
+    let activeMinutes = 0;
+    let idleMinutes = 0;
+    
+    for (const entry of entries.entries) {
+      const minutes = Math.floor(
+        (new Date(entry.endedAt).getTime() - new Date(entry.startedAt).getTime()) / 60000
+      );
+      if (entry.kind === 'ACTIVE') activeMinutes += minutes;
+      else if (entry.kind === 'IDLE') idleMinutes += minutes;
+    }
+    
+    return { activeMinutes, idleMinutes };
   }
 
   @Get('export/csv')
