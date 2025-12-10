@@ -86,13 +86,14 @@ export class ReportsController {
   }
 
   @Get('my-today')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.MEMBER)
   async getMyToday(@Request() req) {
     const today = new Date().toISOString().split('T')[0];
     const from = new Date(today + 'T00:00:00.000Z');
     const to = new Date(today + 'T23:59:59.999Z');
     
     const entries = await this.reportsService.getUserTimesheet(
-      req.user.sub,
+      req.user.id,
       from,
       to,
     );

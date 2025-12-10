@@ -115,53 +115,120 @@ export class RollupService {
     // Merge contiguous same-type minutes
     const merged = this.mergeContiguous(entries);
 
-    // Delete existing entries that overlap with this range
+    // Professional approach: Handle overlapping entries properly
     await this.prisma.$transaction(async (tx) => {
-      // Delete entries that overlap with the processed range (more aggressive)
-      const deleted = await tx.timeEntry.deleteMany({
-        where: {
-          userId,
-          source: 'AUTO',
-          OR: [
-            // Entry starts within range
-            {
-              startedAt: { gte: from, lte: to },
-            },
-            // Entry ends within range
-            {
-              endedAt: { gte: from, lte: to },
-            },
-            // Entry completely contains range
-            {
-              startedAt: { lte: from },
-              endedAt: { gte: to },
-            },
-            // Entry overlaps with range start
-            {
-              startedAt: { lt: from },
-              endedAt: { gt: from },
-            },
-            // Entry overlaps with range end
-            {
-              startedAt: { lt: to },
-              endedAt: { gt: to },
-            },
-          ],
-        },
-      });
-      
-      console.log(`🗑️  Deleted ${deleted.count} overlapping entries`);
+      if (merged.length === 0) return;
 
-      if (merged.length > 0) {
-        await tx.timeEntry.createMany({
-          data: merged,
+      for (const newEntry of merged) {
+        // Check if exact entry already exists
+        const existingExact = await tx.timeEntry.findFirst({
+          where: {
+            userId,
+            source: 'AUTO',
+            kind: newEntry.kind,
+            startedAt: newEntry.startedAt,
+            endedAt: newEntry.endedAt,
+          },
         });
-      }
-    });
 
-    console.log(`✅ Rollup complete: Created ${merged.length} merged time entries`);
+        if (existingExact) {
+          console.log(`⏭️  Skipping duplicate: ${newEntry.kind} ${newEntry.startedAt.toISOString()}`);
+          continue;
+        }
+
+        // Find overlapping entries of DIFFERENT kind (need to split)
+        const conflicting = await tx.timeEntry.findMany({
+          where: {
+            userId,
+            source: 'AUTO',
+            kind: { not: newEntry.kind },
+            startedAt: { lt: newEntry.endedAt },
+            endedAt: { gt: newEntry.startedAt },
+          },
+        });
+
+        // Split conflicting entries
+        for (const conflict of conflicting) {
+          // Delete the conflicting entry
+          await tx.timeEntry.delete({ where: { id: conflict.id } });
+
+          // Create entries for non-overlapping parts
+          if (conflict.startedAt < newEntry.startedAt) {
+            await tx.timeEntry.create({
+              data: {
+                userId,
+                startedAt: conflict.startedAt,
+                endedAt: newEntry.startedAt,
+                kind: conflict.kind,
+                source: 'AUTO',
+              },
+            });
+          }
+
+          if (conflict.endedAt > newEntry.endedAt) {
+            await tx.timeEntry.create({
+              data: {
+                userId,
+                startedAt: newEntry.endedAt,
+                endedAt: conflict.endedAt,
+                kind: conflict.kind,
+                source: 'AUTO',
+              },
+            });
+          }
+        }
+
+        // Find overlapping entries of SAME kind (merge)
+        const sameKind = await tx.timeEntry.findMany({
+          where: {
+            userId,
+            source: 'AUTO',
+            kind: newEntry.kind,
+            OR: [
+              { endedAt: newEntry.startedAt },
+              { startedAt: newEntry.endedAt },
+              {
+                startedAt: { lt: newEntry.endedAt },
+                endedAt: { gt: newEntry.startedAt },
+              },
+            ],
+          },
+          orderBy: { startedAt: 'asc' },
+        });
+
+        if (sameKind.length > 0) {
+          let minStart = newEntry.startedAt;
+          let maxEnd = newEntry.endedAt;
+
+          for (const entry of sameKind) {
+            if (entry.startedAt < minStart) minStart = entry.startedAt;
+            if (entry.endedAt > maxEnd) maxEnd = entry.endedAt;
+          }
+
+          await tx.timeEntry.update({
+            where: { id: sameKind[0].id },
+            data: { startedAt: minStart, endedAt: maxEnd },
+          });
+
+          if (sameKind.length > 1) {
+            await tx.timeEntry.deleteMany({
+              where: { id: { in: sameKind.slice(1).map(e => e.id) } },
+            });
+          }
+
+          console.log(`🔄 Merged ${sameKind.length} ${newEntry.kind}: ${minStart.toISOString()} to ${maxEnd.toISOString()}`);
+        } else {
+          await tx.timeEntry.create({ data: newEntry });
+          console.log(`➕ Created ${newEntry.kind}: ${newEntry.startedAt.toISOString()} to ${newEntry.endedAt.toISOString()}`);
+        }
+      }
+    }, { timeout: 15000 });
+
+    console.log(`✅ Rollup complete: Processed ${merged.length} entries`);
     
-    return { processed: merged.length, deleted: 0 };
+    return { processed: merged.length };
+
+
     } catch (error) {
       console.error('❌ Rollup failed:', error);
       throw error;

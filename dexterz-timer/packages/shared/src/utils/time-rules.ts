@@ -108,6 +108,50 @@ export function getDayBoundariesInTz(
 }
 
 /**
+ * Get the working date for a timestamp based on check-in window
+ * If time is before checkin end (e.g., 02:00), it belongs to previous day's shift
+ * Example: 01:30 AM on Jan 15 → working date is Jan 14
+ */
+export function getWorkingDate(
+  timestamp: Date,
+  checkinEnd: string,
+  timezone: string
+): string {
+  const zonedTime = utcToZonedTime(timestamp, timezone);
+  const timeStr = format(zonedTime, 'HH:mm', { timeZone: timezone });
+  
+  // If current time is before checkin end (e.g., before 02:00), subtract one day
+  if (timeStr < checkinEnd) {
+    const previousDay = addDays(zonedTime, -1);
+    return format(previousDay, 'yyyy-MM-dd', { timeZone: timezone });
+  }
+  
+  return format(zonedTime, 'yyyy-MM-dd', { timeZone: timezone });
+}
+
+/**
+ * Get working day boundaries (from checkin start to checkin end next day)
+ * Example: For 2025-01-15, returns 2025-01-15 16:50 to 2025-01-16 02:00
+ */
+export function getWorkingDayBoundaries(
+  workingDate: string,
+  checkinStart: string,
+  checkinEnd: string,
+  timezone: string
+): { start: Date; end: Date } {
+  // Start: workingDate at checkinStart time
+  const startStr = `${workingDate} ${checkinStart}`;
+  const start = zonedTimeToUtc(startStr, timezone);
+  
+  // End: next day at checkinEnd time
+  const nextDay = format(addDays(parse(workingDate, 'yyyy-MM-dd', new Date()), 1), 'yyyy-MM-dd');
+  const endStr = `${nextDay} ${checkinEnd}`;
+  const end = zonedTimeToUtc(endStr, timezone);
+  
+  return { start, end };
+}
+
+/**
  * Check if samples indicate activity (mouse or keyboard)
  */
 export function hasActivity(mouseDelta: number, keyCount: number): boolean {

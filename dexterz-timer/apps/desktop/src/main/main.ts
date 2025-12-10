@@ -3,6 +3,10 @@ import path from 'path'
 import { ActivityMonitor } from './activity-monitor'
 import { ApiClient } from './api-client'
 import Store from 'electron-store'
+import dotenv from 'dotenv'
+
+// Load environment variables
+dotenv.config({ path: path.join(__dirname, '../../.env') })
 
 const store = new Store()
 let mainWindow: BrowserWindow | null = null
@@ -37,10 +41,30 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/dist/index.html'))
   }
 
-  mainWindow.on('close', (event) => {
+  mainWindow.on('close', async (event) => {
     if (!isQuitting) {
       event.preventDefault()
       mainWindow?.hide()
+      // Don't stop tracking when just hiding window
+      return
+    }
+    
+    // Only stop tracking when actually quitting
+    event.preventDefault()
+    
+    const wasTracking = activityMonitor?.isTracking() || false
+    if (wasTracking) {
+      store.set('wasTracking', true)
+      console.log('Saving tracking state before quit...')
+    }
+    
+    try {
+      await activityMonitor?.stop()
+      console.log('Tracking stopped, closing window')
+    } catch (error) {
+      console.error('Error stopping tracking:', error)
+    } finally {
+      mainWindow?.destroy()
     }
   })
 
@@ -83,7 +107,7 @@ function createTray() {
   })
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow()
   createTray()
 
@@ -97,10 +121,47 @@ app.whenReady().then(() => {
   
   activityMonitor = new ActivityMonitor(apiClient)
 
+  // Restore tracking state if app was tracking before close
+  const wasTracking = store.get('wasTracking') as boolean
+  if (wasTracking && storedAuth?.accessToken) {
+    console.log('Restoring previous tracking session...')
+    try {
+      await activityMonitor.start()
+      console.log('Tracking session restored')
+    } catch (error) {
+      console.error('Failed to restore tracking:', error)
+      store.delete('wasTracking')
+    }
+  }
+
   // Auto-launch on startup
   app.setLoginItemSettings({
     openAtLogin: true,
   })
+})
+
+app.on('before-quit', async (event) => {
+  if (!isQuitting) {
+    event.preventDefault()
+    isQuitting = true
+    
+    console.log('App closing - stopping tracking...')
+    
+    // Save tracking state before stopping
+    const wasTracking = activityMonitor?.isTracking() || false
+    if (wasTracking) {
+      store.set('wasTracking', true)
+    }
+    
+    try {
+      await activityMonitor?.stop()
+      console.log('Tracking stopped successfully')
+    } catch (error) {
+      console.error('Failed to stop tracking on app close:', error)
+    } finally {
+      app.quit()
+    }
+  }
 })
 
 app.on('window-all-closed', () => {
@@ -148,6 +209,7 @@ ipcMain.handle('logout', async () => {
     
     // Always clear local state regardless of API response
     store.delete('auth')
+    store.delete('wasTracking')
     
     // Reset API client
     apiClient = new ApiClient()
@@ -160,6 +222,7 @@ ipcMain.handle('logout', async () => {
     console.error('Logout error:', error)
     // Force clear even on error
     store.delete('auth')
+    store.delete('wasTracking')
     apiClient = new ApiClient()
     activityMonitor = new ActivityMonitor(apiClient)
     return { success: true }
@@ -169,6 +232,7 @@ ipcMain.handle('logout', async () => {
 ipcMain.handle('start-tracking', async () => {
   try {
     await activityMonitor?.start()
+    store.set('wasTracking', true)
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -178,6 +242,7 @@ ipcMain.handle('start-tracking', async () => {
 ipcMain.handle('stop-tracking', async () => {
   try {
     await activityMonitor?.stop()
+    store.delete('wasTracking')
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }

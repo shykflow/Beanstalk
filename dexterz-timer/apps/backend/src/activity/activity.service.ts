@@ -18,17 +18,41 @@ export class ActivityService {
   ) {}
 
   async startSession(userId: string, deviceId: string, platform: string) {
-    // End any existing active sessions for this device
-    await this.prisma.deviceSession.updateMany({
+    // Find and properly close any existing active sessions for this device
+    const existingSessions = await this.prisma.deviceSession.findMany({
       where: {
         userId,
         deviceId,
         endedAt: null,
       },
-      data: {
-        endedAt: new Date(),
-      },
     });
+
+    // Process each existing session
+    for (const oldSession of existingSessions) {
+      console.log(`⚠️ Found unclosed session ${oldSession.id}, closing and processing...`);
+      
+      // Close the session
+      await this.prisma.deviceSession.update({
+        where: { id: oldSession.id },
+        data: { endedAt: new Date() },
+      });
+
+      // Trigger rollup for the old session to process any remaining samples
+      const from = oldSession.startedAt;
+      const to = new Date();
+      
+      try {
+        await this.rollupQueue.add('rollup-user', {
+          userId: oldSession.userId,
+          from,
+          to,
+        });
+        console.log(`🔄 Queued rollup for unclosed session ${oldSession.id}`);
+      } catch (error) {
+        console.log(`⚠️ Redis unavailable, running rollup directly for unclosed session`);
+        await this.rollupService.rollupUserActivity(oldSession.userId, from, to);
+      }
+    }
 
     // Create new session
     const session = await this.prisma.deviceSession.create({
@@ -40,6 +64,7 @@ export class ActivityService {
       },
     });
 
+    console.log(`✅ Created new session ${session.id}`);
     return session;
   }
 
@@ -190,5 +215,37 @@ export class ActivityService {
       orderBy: { capturedAt: 'desc' },
       take: limit,
     });
+  }
+
+  async triggerRollup(userId: string) {
+    const now = new Date();
+    
+    // Find active session to get start time
+    const activeSession = await this.prisma.deviceSession.findFirst({
+      where: {
+        userId,
+        endedAt: null,
+      },
+      orderBy: { startedAt: 'desc' },
+    });
+    
+    // Process from session start (or last 10 minutes if no active session)
+    const from = activeSession 
+      ? activeSession.startedAt 
+      : new Date(now.getTime() - 10 * 60 * 1000);
+    
+    try {
+      await this.rollupQueue.add('rollup-user', {
+        userId,
+        from,
+        to: now,
+      });
+      console.log(`🔄 Rollup queued for user ${userId} from ${from.toISOString()}`);
+      return { success: true, message: 'Rollup triggered' };
+    } catch (error) {
+      console.log(`⚠️ Redis unavailable, running rollup directly`);
+      await this.rollupService.rollupUserActivity(userId, from, now);
+      return { success: true, message: 'Rollup completed directly' };
+    }
   }
 }

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, differenceInMinutes } from 'date-fns';
-import { zonedTimeToUtc } from 'date-fns-tz';
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, differenceInMinutes, addDays, parse } from 'date-fns';
+import { zonedTimeToUtc, utcToZonedTime, format } from 'date-fns-tz';
 
 @Injectable()
 export class ReportsService {
@@ -43,13 +43,29 @@ export class ReportsService {
   }
 
   async getDailyReport(orgId: string, date: Date) {
-    // Parse date as local date (YYYY-MM-DD) to avoid timezone issues
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      include: { schedule: true },
+    });
+
+    if (!org?.schedule) {
+      throw new Error('Organization schedule not configured');
+    }
+
+    const schedule = org.schedule;
     const dateStr = date.toISOString().split('T')[0];
-    const from = new Date(dateStr + 'T00:00:00.000Z');
-    const to = new Date(dateStr + 'T23:59:59.999Z');
     
-    console.log('📅 Daily Report Query:');
-    console.log('  Date String:', dateStr);
+    // Working day boundaries: dateStr at checkinStart to next day at checkinEnd
+    const startStr = `${dateStr} ${schedule.checkinStart}`;
+    const from = zonedTimeToUtc(startStr, schedule.tz);
+    
+    const nextDay = format(addDays(parse(dateStr, 'yyyy-MM-dd', new Date()), 1), 'yyyy-MM-dd');
+    const endStr = `${nextDay} ${schedule.checkinEnd}`;
+    const to = zonedTimeToUtc(endStr, schedule.tz);
+    
+    console.log('📅 Daily Report Query (Working Day):');
+    console.log('  Working Date:', dateStr);
+    console.log('  Schedule:', `${schedule.checkinStart} - ${schedule.checkinEnd}`);
     console.log('  From:', from.toISOString());
     console.log('  To:', to.toISOString());
 
@@ -211,13 +227,24 @@ export class ReportsService {
   async getUserTimesheetWithTimezone(userId: string, from: string, to: string, timezone?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { organization: true },
+      include: { organization: { include: { schedule: true } } },
     });
 
-    const tz = timezone || user?.organization?.timezone || 'Asia/Karachi';
+    if (!user?.organization?.schedule) {
+      throw new Error('Organization schedule not configured');
+    }
+
+    const schedule = user.organization.schedule;
+    const tz = timezone || schedule.tz;
     
-    const fromDate = zonedTimeToUtc(from + ' 00:00:00', tz);
-    const toDate = zonedTimeToUtc(to + ' 23:59:59', tz);
+    // Working day boundaries for from date
+    const fromStartStr = `${from} ${schedule.checkinStart}`;
+    const fromDate = zonedTimeToUtc(fromStartStr, tz);
+    
+    // Working day boundaries for to date (end is next day at checkinEnd)
+    const toNextDay = format(addDays(parse(to, 'yyyy-MM-dd', new Date()), 1), 'yyyy-MM-dd');
+    const toEndStr = `${toNextDay} ${schedule.checkinEnd}`;
+    const toDate = zonedTimeToUtc(toEndStr, tz);
 
     return this.getUserTimesheet(userId, fromDate, toDate);
   }

@@ -41,4 +41,12 @@ export class ActivityController {
       limit ? parseInt(limit) : 100,
     );
   }
+
+  @Post('rollup')
+  async triggerRollup(@Request() req) {
+    console.log(`🎯 Rollup endpoint hit by user: ${req.user.id}`);
+    const result = await this.activityService.triggerRollup(req.user.id);
+    console.log(`📊 Rollup result:`, result);
+    return result;
+  }
 }

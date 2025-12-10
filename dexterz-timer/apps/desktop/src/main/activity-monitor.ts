@@ -1,5 +1,4 @@
-import { ApiClient } from './api-client'
-import { ActivityBatchItem } from '@time-tracker/shared'
+import { ApiClient, ActivityBatchItem } from './api-client'
 import { uIOhook } from 'uiohook-napi'
 import os from 'os'
 
@@ -11,6 +10,7 @@ export class ActivityMonitor {
   private keyPressCount = 0
   private sampleInterval: NodeJS.Timeout | null = null
   private uploadInterval: NodeJS.Timeout | null = null
+  private rollupInterval: NodeJS.Timeout | null = null
   private sessionId: string | null = null
   private lastSync: Date | null = null
   private sessionStartTime: Date | null = null
@@ -57,6 +57,11 @@ export class ActivityMonitor {
         this.uploadSamples()
       }, 60000)
 
+      // Trigger rollup every 1 minute for live admin updates
+      this.rollupInterval = setInterval(() => {
+        this.triggerRollup()
+      }, 60 * 1000)
+
       // Timer update every second
       this.timerInterval = setInterval(() => {
         this.updateTimer()
@@ -72,6 +77,7 @@ export class ActivityMonitor {
   async stop() {
     if (!this.tracking) return
 
+    console.log('Stopping activity tracking...')
     this.tracking = false
 
     if (this.sampleInterval) {
@@ -84,6 +90,11 @@ export class ActivityMonitor {
       this.uploadInterval = null
     }
 
+    if (this.rollupInterval) {
+      clearInterval(this.rollupInterval)
+      this.rollupInterval = null
+    }
+
     if (this.timerInterval) {
       clearInterval(this.timerInterval)
       this.timerInterval = null
@@ -92,16 +103,35 @@ export class ActivityMonitor {
     // Stop keyboard listener
     this.stopKeyboardListener()
 
-    try {
-      // Upload remaining samples
-      await this.uploadSamples()
+    const sessionIdToStop = this.sessionId
 
-      // End session
+    try {
+      // Capture final sample before upload
       if (this.sessionId) {
-        await this.apiClient.stopSession(this.sessionId)
+        this.captureSample()
+        console.log('Captured final sample')
+      }
+
+      // Upload remaining samples
+      if (this.samples.length > 0) {
+        await this.uploadSamples()
+        console.log('Uploaded final samples')
+      }
+
+      // Trigger final rollup to process all samples
+      if (sessionIdToStop) {
+        await this.apiClient.triggerRollup()
+        console.log('Triggered final rollup')
+      }
+
+      // End session (this also triggers backend rollup)
+      if (sessionIdToStop) {
+        await this.apiClient.stopSession(sessionIdToStop)
+        console.log('Session ended on backend')
       }
     } catch (error) {
       console.error('Error during stop cleanup:', error)
+      // Don't throw - ensure cleanup completes
     } finally {
       // Always clear session state
       this.sessionId = null
@@ -116,7 +146,7 @@ export class ActivityMonitor {
       this.wasIdle = false
     }
 
-    console.log('Activity tracking stopped')
+    console.log('Activity tracking stopped successfully')
   }
 
   private captureSample() {
@@ -279,5 +309,29 @@ export class ActivityMonitor {
   private stopKeyboardListener() {
     // Stop the native hook
     uIOhook.stop()
+  }
+
+  private async triggerRollup() {
+    if (!this.tracking) {
+      console.log('⏭️  Skipping rollup - not tracking')
+      return
+    }
+    
+    console.log('🔄 Triggering rollup...')
+    
+    try {
+      // Upload any pending samples first
+      if (this.samples.length > 0) {
+        console.log(`  📤 Uploading ${this.samples.length} pending samples first`)
+        await this.uploadSamples()
+      }
+      
+      // Trigger rollup on backend
+      console.log('  📡 Calling backend rollup API...')
+      const result = await this.apiClient.triggerRollup()
+      console.log('  ✅ Rollup triggered successfully:', result)
+    } catch (error) {
+      console.error('  ❌ Failed to trigger rollup:', error)
+    }
   }
 }

@@ -23,7 +23,6 @@ export default function DashboardLayout({
       router.push('/login')
     } else {
       loadUser()
-      setLoading(false)
     }
   }, [router])
 
@@ -31,8 +30,15 @@ export default function DashboardLayout({
     try {
       const userData = await api.getCurrentUser()
       setUser(userData)
+      
+      // Redirect MEMBER to their activity page if on admin pages
+      if (userData.role === 'MEMBER' && pathname === '/dashboard') {
+        router.push('/dashboard/my-activity')
+      }
     } catch (error) {
       console.error('Failed to load user:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -67,59 +73,99 @@ export default function DashboardLayout({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.name || 'Admin'}
+                {user?.fullName || user?.email?.split('@')[0] || 'User'}
               </p>
-              <p className="text-xs text-gray-500 truncate">{user?.email || 'admin@example.com'}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
             </div>
           </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1">
-          <Link
-            href="/dashboard"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isActive('/dashboard')
-                ? 'bg-primary text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <BarChart3 className="h-5 w-5" />
-            Dashboard
-          </Link>
-          <Link
-            href="/dashboard/timesheets"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isActive('/dashboard/timesheets')
-                ? 'bg-primary text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <Clock className="h-5 w-5" />
-            Timesheets
-          </Link>
-          <Link
-            href="/dashboard/users"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isActive('/dashboard/users')
-                ? 'bg-primary text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <Users className="h-5 w-5" />
-            Users
-          </Link>
-          <Link
-            href="/dashboard/settings"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isActive('/dashboard/settings')
-                ? 'bg-primary text-white'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            <Settings className="h-5 w-5" />
-            Settings
-          </Link>
+          {user?.role === 'MEMBER' ? (
+            <>
+              <Link
+                href="/dashboard/my-activity"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/dashboard/my-activity')
+                    ? 'bg-primary text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <BarChart3 className="h-5 w-5" />
+                My Activity
+              </Link>
+              <Link
+                href="/dashboard/my-timesheet"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/dashboard/my-timesheet')
+                    ? 'bg-primary text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Clock className="h-5 w-5" />
+                My Timesheet
+              </Link>
+              <Link
+                href="/dashboard/change-password"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/dashboard/change-password')
+                    ? 'bg-primary text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Settings className="h-5 w-5" />
+                Change Password
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/dashboard"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/dashboard')
+                    ? 'bg-primary text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <BarChart3 className="h-5 w-5" />
+                Dashboard
+              </Link>
+              <Link
+                href="/dashboard/timesheets"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/dashboard/timesheets')
+                    ? 'bg-primary text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Clock className="h-5 w-5" />
+                Timesheets
+              </Link>
+              <Link
+                href="/dashboard/users"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/dashboard/users')
+                    ? 'bg-primary text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Users className="h-5 w-5" />
+                Users
+              </Link>
+              <Link
+                href="/dashboard/settings"
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/dashboard/settings')
+                    ? 'bg-primary text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Settings className="h-5 w-5" />
+                Settings
+              </Link>
+            </>
+          )}
         </nav>
 
         {/* Logout */}

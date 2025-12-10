@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Request, HttpCode } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Request, HttpCode } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -32,5 +32,25 @@ export class AuthController {
   @HttpCode(204)
   async logout(@Request() req) {
     await this.authService.logout(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async getCurrentUser(@Request() req) {
+    return req.user;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  @HttpCode(200)
+  async changePassword(
+    @Request() req,
+    @Body() body: { currentPassword: string; newPassword: string },
+  ) {
+    return this.authService.changePassword(
+      req.user.id,
+      body.currentPassword,
+      body.newPassword,
+    );
   }
 }

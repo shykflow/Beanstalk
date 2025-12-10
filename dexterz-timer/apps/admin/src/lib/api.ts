@@ -47,13 +47,15 @@ class ApiClient {
     })
 
     if (!response.ok) {
-      if (response.status === 401) {
+      const error = await response.json().catch(() => ({ message: 'Request failed' }))
+      
+      if (response.status === 401 && !endpoint.includes('change-password')) {
         this.clearToken()
         if (typeof window !== 'undefined') {
           window.location.href = '/login'
         }
       }
-      const error = await response.json().catch(() => ({ message: 'Request failed' }))
+      
       throw new Error(error.message || 'Request failed')
     }
 
@@ -185,6 +187,17 @@ class ApiClient {
     if (from) query += `&from=${from}`
     if (to) query += `&to=${to}`
     return this.request<any[]>(`/organizations/adjustments${query}`)
+  }
+
+  async getMyTodayStats() {
+    return this.request<{ activeMinutes: number; idleMinutes: number }>('/reports/my-today')
+  }
+
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
   }
 }
 

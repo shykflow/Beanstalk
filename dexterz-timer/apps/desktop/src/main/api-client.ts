@@ -1,6 +1,11 @@
-import { ActivityBatchItem } from '@time-tracker/shared'
+export interface ActivityBatchItem {
+  capturedAt: string
+  mouseDelta: number
+  keyCount: number
+  deviceSessionId?: string
+}
 
-const API_URL = process.env.API_URL || 'http://localhost:3001/api'
+const API_URL = process.env.API_URL || 'https://dexterzbackend.online/api'
 
 export class ApiClient {
   private token: string | null = null
@@ -101,5 +106,11 @@ export class ApiClient {
       breakEnd: string
       idleThresholdSeconds: number
     }>('/organizations/schedule')
+  }
+
+  async triggerRollup() {
+    return this.request('/activity/rollup', {
+      method: 'POST',
+    })
   }
 }
