@@ -1,0 +1,645 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        // Runserver
+        {
+            "name": "Runserver",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [ "runserver", "0:8000" ],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "1 Development"
+            }
+        },
+        {
+            "name": "Shell",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [ "shell" ],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "1 Development"
+            }
+        },
+
+        // Commands
+        {
+            "name": "Command - API: send_test_email",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [ "send_test_email" ],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "2 Commands"
+            }
+        },
+        {
+            "name": "Command - API: register_content_categories_in_lf",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [ "register_content_categories_in_lf" ],
+            "django": true,
+            "env": {
+                "LOG_LEVEL": "INFO"
+            },
+            "presentation": {
+                "hidden": false,
+                "group": "2 Commands"
+            }
+        },
+        {
+            "name": "Command - API: manage_user_mfa",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [ "manage_user_mfa" ],
+            "django": true,
+            "env": {
+                "LOG_LEVEL": "INFO"
+            },
+            "presentation": {
+                "hidden": false,
+                "group": "2 Commands"
+            }
+        },
+        {
+            "name": "Command - Spools: consume_category_archive_spool",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [ "consume_category_archive_spool" ],
+            "django": true,
+            "env": {
+                "LOG_LEVEL": "INFO"
+            },
+            "presentation": {
+                "hidden": false,
+                "group": "2 Commands"
+            }
+        },
+        {
+            "name": "Command - Schedules: send_experience_of_the_day_notifs",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [ "send_experience_of_the_day_notifs" ],
+            "django": true,
+            "env": {
+                "LOG_LEVEL": "INFO"
+            },
+            "presentation": {
+                "hidden": false,
+                "group": "2 Commands"
+            }
+        },
+
+
+        // Tests - Run All
+        {
+            "name": "Test: Run all",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [ "test" ],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "4 Run All - Tests"
+            }
+        },
+
+        // Tests - API
+        {
+            "name": "Test - API: test_action_page_data",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_action_page_data"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_activities",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_activities"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_app_colors",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_app_colors"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_attachments",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_attachments"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_categories",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_categories"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_comments",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_comments"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_content_from_category",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_content_from_category"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_continuations",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_continuations"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_delete_experience",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_delete_experience"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_delete_playlist",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_delete_playlist"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_delete_post",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_delete_post"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_delete_user",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_delete_user"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_device",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_device"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_discover_feed",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_discover_feed"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_experiences",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_experiences"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_filter_playlists_by_created_by",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_filter_playlists_by_created_by"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_filter_playlists_by_pinned_by",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_filter_playlists_by_pinned_by"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_follow_feed",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_follow_feed"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_for_you_feed",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_for_you_feed"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_interests",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_interests"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_lifeframe_methods",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_lifeframe_methods"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_likes",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_likes"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_mentioning",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_mentioning"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_messages",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_messages"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_multi_factor_auth",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_multi_factor_auth"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_near_you_mappings",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_near_you_mappings"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_pagination",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_pagination"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_partner_abilities",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_partner_abilities"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_playlists",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_playlists"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_posts",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_posts"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_ratings",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_ratings"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_reporting",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_reporting"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_soft_delete_classes",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_soft_delete_classes"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_users",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_users"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_user_blocks",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_user_blocks"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_user_follows",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_user_follows"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_user_obfuscate_fields",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_user_obfuscate_fields"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_user_profile_feed",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_user_profile_feed"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_util_helpers",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_util_helpers"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+        {
+            "name": "Test - API: test_webhook_archive_category",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "api.tests.test_webhook_archive_category"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "5 API - Tests"
+            }
+        },
+
+        // Tests - Schedules
+        {
+            "name": "Test - Schedules: test_experience_of_the_day_schedule",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "schedules.tests.test_experience_of_the_day_schedule"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "6 Schedules - Tests"
+            }
+        },
+        {
+            "name": "Test - Schedules: test_experience_of_the_day_notif_sending",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "schedules.tests.test_experience_of_the_day_notif_sending"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "6 Schedules - Tests"
+            }
+        },
+
+
+        // Tests - Sponsorship
+        {
+            "name": "Test - Sponsorship: test_sponsorship_category",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/manage.py",
+            "args": ["test", "sponsorship.tests.test_sponsorship_category"],
+            "django": true,
+            "presentation": {
+                "hidden": false,
+                "group": "7 Sponsorship - Tests"
+            }
+        }
+    ]
+}

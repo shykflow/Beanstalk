@@ -1,0 +1,150 @@
+image: docker/compose:latest
+
+stages:
+  - test
+  - build-api
+  - build-cron
+  - deploy
+
+before_script:
+  - echo "Pipeline source - $CI_PIPELINE_SOURCE"
+  - echo "Commit ref name - $CI_COMMIT_REF_NAME"
+  - echo "Logging into registry - $CI_REGISTRY"
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  - touch .env
+
+services:
+  - docker:20-dind
+
+test:
+  stage: test
+  script:
+    - docker-compose -f docker-compose.test.yml build
+    - docker-compose -f docker-compose.test.yml up -d
+    - docker exec beanstalk-api_beanstalk-api_1 python manage.py test --noinput
+    - docker-compose -f docker-compose.test.yml down
+  tags:
+    # Machine it runs on
+    - docker
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" && $CI_PIPELINE_SOURCE == 'merge_request_event'
+
+
+.build: &build
+  script:
+    - docker-compose -f ${DOCKER_COMPOSE_FILE} build
+    - docker tag registry.gurutechnologies.net/beanstalk/beanstalk-api/${ENVIRONMENT} $IMAGE
+    - docker tag registry.gurutechnologies.net/beanstalk/beanstalk-api/${ENVIRONMENT} $LATEST_IMAGE
+    - docker push $IMAGE
+    - docker push $LATEST_IMAGE
+  tags:
+    - build
+
+build_staging_api:
+  stage: build-api
+  <<: *build
+  variables:
+    ENVIRONMENT: staging-api
+    IMAGE: $CI_REGISTRY_IMAGE/staging-api:$CI_COMMIT_SHA
+    LATEST_IMAGE: $CI_REGISTRY_IMAGE/staging-api:latest
+    NGINX_CONFIGS_DIR: nginx_configs_staging
+    DOCKER_COMPOSE_FILE: docker-compose.production-api.yml
+  only:
+    # Specifying branch name to watch
+    - staging
+build_staging_cron:
+  stage: build-cron
+  <<: *build
+  variables:
+    ENVIRONMENT: staging-cron
+    IMAGE: $CI_REGISTRY_IMAGE/staging-cron:$CI_COMMIT_SHA
+    LATEST_IMAGE: $CI_REGISTRY_IMAGE/staging-cron:latest
+    NGINX_CONFIGS_DIR: nginx_configs_staging
+    DOCKER_COMPOSE_FILE: docker-compose.production-cron.yml
+  only:
+    - staging
+
+build_production_api:
+  stage: build-api
+  <<: *build
+  variables:
+    ENVIRONMENT: production-api
+    IMAGE: $CI_REGISTRY_IMAGE/production-api:$CI_COMMIT_SHA
+    LATEST_IMAGE: $CI_REGISTRY_IMAGE/production-api:latest
+    NGINX_CONFIGS_DIR: nginx_configs_production
+    DOCKER_COMPOSE_FILE: docker-compose.production-api.yml
+  only:
+    - production
+build_production_cron:
+  stage: build-cron
+  <<: *build
+  variables:
+    ENVIRONMENT: production-cron
+    IMAGE: $CI_REGISTRY_IMAGE/production-cron:$CI_COMMIT_SHA
+    LATEST_IMAGE: $CI_REGISTRY_IMAGE/production-cron:latest
+    NGINX_CONFIGS_DIR: nginx_configs_production
+    DOCKER_COMPOSE_FILE: docker-compose.production-cron.yml
+  only:
+    - production
+
+
+.deploy: &deploy
+  stage: deploy
+  script:
+    - cd /beanstalk-api
+    - docker compose -f ${DOCKER_COMPOSE_FILE} down -v
+    # Drop all of the previously downloaded containers / volumes that aren't on
+    - docker system prune -a -f
+    # git pull only works if the deploy key is in the gitlab-runner user's .ssh folder
+    - git pull
+    - docker compose -f ${DOCKER_COMPOSE_FILE} pull
+    - docker compose -f ${DOCKER_COMPOSE_FILE} up -d -V
+    # If the firebase json file exists copy it into the container
+    - if [ -f firebase-admin-sdk.json ]; then
+    -   docker cp firebase-admin-sdk.json ${FIREBASE_JSON_CONTAINER_TARGET}:/app/firebase-admin-sdk.json
+    - fi
+deploy_staging_api_1:
+  <<: *deploy
+  variables:
+    GIT_STRATEGY: none
+    ENVIRONMENT: staging-api
+    DOCKER_COMPOSE_FILE: docker-compose.production-api.yml
+    FIREBASE_JSON_CONTAINER_TARGET: beanstalk_api
+  tags:
+    - beanstalk-staging-runner-api-1
+  only:
+    - staging
+deploy_staging_api_cron:
+  <<: *deploy
+  variables:
+    GIT_STRATEGY: none
+    ENVIRONMENT: staging-cron
+    DOCKER_COMPOSE_FILE: docker-compose.production-cron.yml
+    FIREBASE_JSON_CONTAINER_TARGET: beanstalk_api_cron
+  tags:
+    - beanstalk-staging-runner-cron
+  only:
+    - staging
+
+deploy_production_api_1:
+  <<: *deploy
+  variables:
+    GIT_STRATEGY: none
+    ENVIRONMENT: production-api
+    DOCKER_COMPOSE_FILE: docker-compose.production-api.yml
+    FIREBASE_JSON_CONTAINER_TARGET: beanstalk_api
+  tags:
+    - beanstalk-production-runner-api-1
+  only:
+    - production
+deploy_production_api_cron:
+  <<: *deploy
+  variables:
+    GIT_STRATEGY: none
+    ENVIRONMENT: production-cron
+    DOCKER_COMPOSE_FILE: docker-compose.production-cron.yml
+    FIREBASE_JSON_CONTAINER_TARGET: beanstalk_api_cron
+  tags:
+    - beanstalk-production-runner-cron
+  only:
+    - production

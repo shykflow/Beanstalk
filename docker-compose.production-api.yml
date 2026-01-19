@@ -1,0 +1,50 @@
+version: "3.4"
+
+services:
+
+  beanstalk_nginx:
+    image: nginx
+    restart: unless-stopped
+    container_name: beanstalk_nginx
+    volumes:
+      # Note: :ro at the end = read only
+      - ./${NGINX_CONFIGS_DIR}:/etc/nginx/conf.d:ro
+      - ./static:/static/:ro
+    ports:
+      - 80:80
+    networks:
+      - beanstalk_network
+    depends_on:
+      - beanstalk_api
+
+  beanstalk_api:
+    container_name: beanstalk_api
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      args:
+        ENTRY_FILE: docker-entrypoint.production-api.sh
+    image: registry.gurutechnologies.net/beanstalk/beanstalk-api/${ENVIRONMENT}
+    env_file: .env
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_CLOUDWATCH_REGION}
+        awslogs-group: ${AWS_CLOUDWATCH_GROUP}
+    volumes:
+      - ./static:/static
+      - app:/app/
+    networks:
+      - beanstalk_network
+    expose:
+      - 8000
+
+volumes:
+  app:
+
+networks:
+  beanstalk_network:
+    driver: bridge

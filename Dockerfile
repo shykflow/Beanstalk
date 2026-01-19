@@ -1,0 +1,63 @@
+FROM python:3.11.0-bullseye
+
+
+# install system dependencies
+RUN apt-get update
+RUN apt-get install -y locales
+RUN apt-get install -y libmagic1
+RUN apt-get install -y libmagickwand-dev
+RUN apt-get install -y postgresql-client
+RUN apt-get install -y ffmpeg
+RUN apt-get install -y cron
+RUN apt-get install -y exiftool
+RUN apt-get install -y curl
+RUN apt-get install -y build-essential
+RUN apt-get install -y libffi-dev
+RUN apt-get install -y graphviz
+RUN apt-get install -y nano
+RUN apt-get install -y vim
+RUN apt-get install -y acl
+
+# these are needed for doing DjangoGeo operations
+RUN apt-get install -y binutils
+RUN apt-get install -y libproj-dev
+RUN apt-get install -y gdal-bin
+RUN apt-get install -y python3-gdal
+
+
+# configure locale
+RUN sed -i -e 's/# \(en_US\.UTF-8 .*\)/\1/' /etc/locale.gen && locale-gen
+
+
+# Force stin, stdout, and stderr to be totally unbuffered
+ENV PYTHONUNBUFFERED 1
+ENV POETRY_VERSION 1.6.1
+
+RUN pip install --no-cache-dir --upgrade pip wheel
+RUN pip install "poetry==$POETRY_VERSION"
+
+# cleanup
+RUN rm -rf /var/lib/apt/lists
+
+# project skeleton
+WORKDIR /app/
+
+RUN setfacl -d -m u::rwx /app
+RUN setfacl -d -m g::rwx /app
+RUN setfacl -d -m o::rwx /app
+
+# COPY pyproject.toml and poetry.lock and RUN poetry install BEFORE adding the rest the code,
+# this will cause Docker's caching mechanism to prevent re-installing (all)
+# dependencies when there is only a change in the code.
+COPY pyproject.toml poetry.lock ./
+
+RUN poetry config virtualenvs.create false
+RUN poetry install --no-interaction --no-root
+
+COPY docker-entrypoint.development.sh /docker-entrypoint.development.sh
+RUN chmod +x /docker-entrypoint.development.sh
+
+RUN echo "alias ll='ls -alF'" >> ~/.bashrc
+RUN echo "alias rs='python manage.py runserver 0:8000'" >> ~/.bashrc
+
+ENTRYPOINT [ "/docker-entrypoint.development.sh" ]

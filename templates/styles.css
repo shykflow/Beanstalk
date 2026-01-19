@@ -1,0 +1,36 @@
+html, body {
+  padding: 0;
+  margin: 0;
+  font-family: sans-serif;
+}
+
+
+.content-wrapper {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
+  height: 100%;
+  width: 100%;
+}
+
+.verification-code {
+  display: inline;
+  /* TODO style */
+}
+
+.content {
+  width: 50%;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .content {
+      width: 100%;
+  }
+}
+
+#pagetitle {
+  color: #ff8686;
+}

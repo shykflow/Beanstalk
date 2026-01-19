@@ -1,0 +1,33 @@
+DATE_FORMAT="%Y-%m-%d_%H:%M:%S"
+LOGFILE=/var/log/cron.log
+PYTHON=/usr/local/bin/python
+
+# Refresh the popular categories cache every 30 minutes
+*/30 * * * * root . /.env; echo $(date +$DATE_FORMAT) "Attempting to run python manage.py cache_popular_categories" >> $LOGFILE; /usr/bin/flock -n /tmp/cache_popular_categories.lockfile $PYTHON /app/manage.py cache_popular_categories >> $LOGFILE 2>&1
+
+# Sync requested categories at 9AM UTC (2AM Utah in the winter)
+0 9 * * * root . /.env; echo $(date +$DATE_FORMAT) "Attempting to run python manage.py sync_categories" >> $LOGFILE;  /usr/bin/flock -n /tmp/sync_categories.lockfile $PYTHON /app/manage.py sync_categories >> $LOGFILE 2>&1
+
+# Spools
+# consume_category_archive_spool every 5 minutes, starting at 00:05
+# 00:00, 00:05, 00:10...
+*/5 * * * * root . /.env; echo $(date +$DATE_FORMAT) "Attempting to run python manage.py consume_category_archive_spool" >> $LOGFILE; /usr/bin/flock -n /tmp/consume_category_archive_spool.lockfile $PYTHON /app/manage.py consume_category_archive_spool >> $LOGFILE 2>&1
+
+# Send exp of the day notifs the first minute of every hour
+1 * * * * root . /.env; echo $(date +$DATE_FORMAT) "Attempting to run python manage.py send_experience_of_the_day_notifs" >> $LOGFILE; /usr/bin/flock -n /tmp/send_experience_of_the_day_notifs.lockfile $PYTHON /app/manage.py send_experience_of_the_day_notifs >> $LOGFILE 2>&1
+
+# send_new_reports_email every 5 minutes, starting at 00:04
+# 00:04, 00:09, 00:14...
+1-59/5 * * * * root . /.env; echo $(date +$DATE_FORMAT) "Attempting to run python manage.py send_new_reports_email" >> $LOGFILE; /usr/bin/flock -n /tmp/send_new_reports_email.lockfile $PYTHON /app/manage.py send_new_reports_email >> $LOGFILE 2>&1
+
+# Send experience accepts and completes every 15 minutes, starting at 00:02
+# 00:02, 00:17, 00:32...
+2-59/15 * * * * root . /.env; echo $(date +$DATE_FORMAT) "Attempting to run python manage.py send_experience_notifications" >> $LOGFILE;/usr/bin/flock -n /tmp/send_experience_notifications.lockfile $PYTHON /app/manage.py send_experience_notifications >> $LOGFILE 2>&1
+
+# aggregate activities every 5 minutes, starting at 00:03
+# 00:03, 00:08, 00:13...
+3-59/5 * * * * root . /.env; echo $(date +$DATE_FORMAT) "Attempting to run python manage.py aggregate_activities" >> $LOGFILE; /usr/bin/flock -n /tmp/aggregate_activities.lockfile $PYTHON /app/manage.py aggregate_activities >> $LOGFILE 2>&1
+
+# Send notifications for likes every 5 minutes, starting at 00:01
+# 00:01, 00:06, 00:11...
+4-59/5 * * * * root . /.env; echo $(date +$DATE_FORMAT) "Attempting to run python manage.py send_likes_notifications" >> $LOGFILE; /usr/bin/flock -n /tmp/send_like_notifications.lockfile $PYTHON /app/manage.py send_likes_notifications >> $LOGFILE 2>&1

@@ -1,0 +1,28 @@
+<!-- see this link for the overridden files -->
+<!-- https://github.com/django/django/tree/main/django/contrib/admin/templates/admin -->
+
+{% extends "admin/delete_selected_confirmation.html" %}
+{% load api_templatetags %}
+{% load i18n l10n %}
+
+{% block content %}
+  {% block delete_confirm %}
+    <p>Are you sure you want to soft delete these items?</p>
+
+    {{ deletable_objects|selected_soft_delete_list }}
+
+    <p style="color: red;">This is permanent</p>
+    <form method="post">
+      {% csrf_token %}
+      <div>
+        {% for obj in queryset %}
+        <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk|unlocalize }}">
+        {% endfor %}
+        <input type="hidden" name="action" value="delete_selected">
+        <input type="hidden" name="post" value="yes">
+        <input type="submit" value="Yes, soft delete">
+        <a href="#" class="button cancel-link">No, take me back</a>
+      </div>
+    </form>
+  {% endblock %}
+{% endblock content %}

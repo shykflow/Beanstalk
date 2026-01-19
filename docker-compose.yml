@@ -1,0 +1,152 @@
+version: "3.4"
+
+# Note:
+# No underscores in service names or requests
+# will be blocked between containers
+# https://stackoverflow.com/a/52997937/10381880
+
+services:
+
+  ### BEANSTALK ###
+
+  beanstalk-api:
+    build:
+      context: .
+    env_file: .env
+    environment:
+      AWS_ACCESS_KEY_ID: ${BEANSTALK_AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${BEANSTALK_AWS_SECRET_ACCESS_KEY}
+      LIFEFRAME_API_URL: http://lifeframe-api:8000
+      BEANSTALK_CRON: "false"
+      REDIS_HOST: beanstalk-redis
+      REDIS_PORT: 6379
+      # REDIS_PASSWORD: n08sR^*Z^jIju%Ix
+    stop_signal: SIGINT
+    restart: unless-stopped
+    depends_on:
+      - beanstalk-db
+      - beanstalk-redis
+      - lifeframe-db
+      - lifeframe-api
+    stdin_open: true
+    tty: true
+    ports:
+      - ${BEANSTALK_PUBLIC_API_PORT:-8000}:8000
+      # 3000 is the common port for python debugging with vscode
+      - ${BEANSTALK_PYTHON_DEBUG_PORT:-3000}:3000
+    volumes:
+      - .:/app
+    networks:
+      - lemco_bridge_network
+    expose:
+      - 8000
+
+  beanstalk-cron:
+    build:
+      context: .
+    env_file: .env
+    environment:
+      AWS_ACCESS_KEY_ID: ${BEANSTALK_AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${BEANSTALK_AWS_SECRET_ACCESS_KEY}
+      LIFEFRAME_API_URL: http://lifeframe-api:8000
+      BEANSTALK_CRON: "true"
+      REDIS_HOST: beanstalk-redis
+      REDIS_PORT: 6379
+      # - REDIS_PASSWORD=n08sR^*Z^jIju%Ix
+    stop_signal: SIGINT
+    restart: unless-stopped
+    depends_on:
+      - beanstalk-db
+      - beanstalk-redis
+      - lifeframe-db
+      - lifeframe-api
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/app
+    networks:
+      - lemco_bridge_network
+
+  beanstalk-redis:
+    image: redis:6.2-alpine
+    restart: always
+    ports:
+      - '6379:6379'
+    # redis-server command with --save 20 1
+    # instructs the server to save 1 or more writes every 20 seconds
+    # to disk in case the server restarts
+    # command: redis-server --save 20 1 --loglevel warning --requirepass n08sR^*Z^jIju%Ix
+    command: redis-server --save 20 1 --loglevel warning
+    volumes:
+      - beanstalk_redis_cache:/data
+    networks:
+      - lemco_bridge_network
+
+  beanstalk-db:
+    image: postgis/postgis:14-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${BEANSTALK_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${BEANSTALK_DB_PASSWORD:-password}
+      POSTGRES_DB: ${BEANSTALK_DB_DATABASE_NAME:-beanstalk_db}
+    ports:
+      - ${BEANSTALK_DB_HOST_MAPPED_PORT:-5432}:5432
+    volumes:
+      # Persist database state between docker sessions/builds
+      - beanstalk_db_volume:/var/lib/postgresql/data
+    networks:
+      - lemco_bridge_network
+
+
+  ### LIFEFRAME ###
+
+  lifeframe-api:
+    build:
+      context: ${LIFEFRAME_DIR}/
+      dockerfile: ${LIFEFRAME_DIR}/Dockerfile
+    environment:
+      AWS_ACCESS_KEY_ID: ${LIFEFRAME_AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${LIFEFRAME_AWS_SECRET_ACCESS_KEY}
+    env_file: .env
+    stop_signal: SIGINT
+    restart: unless-stopped
+    depends_on:
+      - lifeframe-db
+    stdin_open: true
+    tty: true
+    ports:
+      - ${LIFEFRAME_PUBLIC_API_PORT:-8000}:8000
+      # 3000 is the common port for python debugging with vscode
+      - ${LIFEFRAME_PYTHON_DEBUG_PORT:-3000}:3000
+    volumes:
+      - ${LIFEFRAME_DIR}/:/app
+    networks:
+      - lemco_bridge_network
+    expose:
+      - 8000
+
+  lifeframe-db:
+    image: postgres:14.2
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${LIFEFRAME_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${LIFEFRAME_DB_PASSWORD:-password}
+      POSTGRES_DB: ${LIFEFRAME_DB_DATABASE_NAME:-lifeframe_db}
+    ports:
+      - ${LIFEFRAME_DB_HOST_MAPPED_PORT:-5433}:5432
+    volumes:
+      # Persist database state between docker sessions/builds
+      - lifeframe_db_volume:/var/lib/postgresql/data
+    networks:
+      - lemco_bridge_network
+
+
+volumes:
+  beanstalk_db_volume:
+  lifeframe_db_volume:
+  beanstalk_redis_cache:
+
+
+networks:
+  lemco_bridge_network:
+    driver: bridge

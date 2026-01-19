@@ -1,0 +1,25 @@
+version: "3.4"
+
+services:
+  beanstalk_api_cron:
+    container_name: beanstalk_api_cron
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      args:
+        ENTRY_FILE: docker-entrypoint.production-cron.sh
+    image: registry.gurutechnologies.net/beanstalk/beanstalk-api/${ENVIRONMENT}
+    env_file: .env
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_CLOUDWATCH_REGION}
+        awslogs-group: ${AWS_CLOUDWATCH_GROUP}
+    volumes:
+      - app:/app/
+
+volumes:
+  app:

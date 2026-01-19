@@ -1,0 +1,18 @@
+{% extends "outgoing_email_base.html" %}
+
+{% block title %}Beanstalk: User generated content has been reported and needs attention{% endblock %}
+
+{% block content %}
+    <!-- <img src="cid:logo"> -->
+    <h1>Needs attention</h1>
+    <p>
+        There have been {{new_reports_since_last_email_count}} report(s) created since the
+        last email that need attention.
+    </p>
+    <p>
+        Total un-acknowledged reports: {{unacknowledged_reports_count}}
+    </p>
+    <p>
+        <a href="{{admin_url}}/api/report/?acknowledged=false">Click here to see these reports</a>
+    </p>
+{% endblock %}

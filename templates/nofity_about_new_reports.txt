@@ -1,0 +1,10 @@
+Beanstalk: User generated content has been reported and needs attention
+
+There have been {{new_reports_since_last_email_count}} report(s) created since the
+last email that need attention.
+
+Total un-acknowledged reports: {{unacknowledged_reports_count}}
+
+Click here to see these reports
+
+{{admin_url}}/api/report/?acknowledged=false

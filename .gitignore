@@ -1,0 +1,30 @@
+__pycache__/
+.env
+
+# ignoring files created from running collectstatic
+admin/css/*
+admin/fonts/*
+admin/img/*
+admin/js/*
+nested_admin/*
+rest_framework/*
+
+
+tmp/
+
+# only ignore the "static" folder at the root of this project
+/static
+
+email_output/
+
+.devcontainer/devcontainer.json
+
+firebase-admin-sdk.json
+google_sheets_crawler.json
+api/management/commands/logs/import_experiences.log
+api/tests/tmp
+
+erd/
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore

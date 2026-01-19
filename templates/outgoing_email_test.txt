@@ -1,0 +1,2 @@
+This is a test email from Beanstalk!
+Here's a link to click on: {{link}}

@@ -1,0 +1,29 @@
+{% load i18n %}
+
+
+{% block extra_head %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style type="text/css">
+
+</style>
+{% endblock %}
+
+
+<div class="content-wrapper">
+    <div class="content">
+
+        <h1>Beanstalk</h1>
+
+        {% block content %}
+        <div id="pagetitle">
+            <h2>{% trans "Confirm E-mail Address" %}</h2>
+        </div>
+
+        <p>Continue signing up by entering the code below:</p>
+        <p class="verification-code">
+            {{verification_code}}
+        </p>
+
+        {% endblock %}
+    </div>
+</div>

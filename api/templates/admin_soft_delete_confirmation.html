@@ -1,0 +1,26 @@
+<!-- see this link for the overridden files -->
+<!-- https://github.com/django/django/tree/main/django/contrib/admin/templates/admin -->
+
+{% extends "admin/delete_confirmation.html" %}
+
+{% block content %}
+  {% block delete_confirm %}
+    <p>"{{object}}"</p>
+    <p>Are you sure you want to soft delete the {{ object_name }}?</p>
+    <p style="color: red;">This is permanent</p>
+    <form method="post">
+      {% csrf_token %}
+      <div>
+        <input type="hidden" name="post" value="yes">
+        {% if is_popup %}
+          <input type="hidden" name="{{ is_popup_var }}" value="1">
+        {% endif %}
+        {% if to_field %}
+          <input type="hidden" name="{{ to_field_var }}" value="{{ to_field }}">
+        {% endif %}
+        <input type="submit" value="Yes, soft delete">
+        <a href="#" class="button cancel-link">No, take me back</a>
+      </div>
+    </form>
+  {% endblock %}
+{% endblock content %}

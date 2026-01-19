@@ -1,0 +1,91 @@
+version: "3.4"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - beanstalk_network
+  beanstalk_nginx:
+    image: nginx
+    restart: unless-stopped
+    container_name: beanstalk_nginx_test
+    volumes:
+      # Note: :ro at the end = read only
+      - ./${NGINX_CONFIGS_DIR}:/etc/nginx/conf.d:ro
+      - ./static:/static/:ro
+    ports:
+      - 80:80
+    networks:
+      - beanstalk_network
+    depends_on:
+      - beanstalk_api
+
+  beanstalk_api:
+    container_name: beanstalk_api_test
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      args:
+        ENTRY_FILE: docker-entrypoint.production-api.sh
+    #image: registry.gurutechnologies.net/beanstalk/beanstalk-api/${ENVIRONMENT}
+    env_file: .env
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_CLOUDWATCH_REGION}
+        awslogs-group: ${AWS_CLOUDWATCH_GROUP}
+    volumes:
+      - ./static:/static
+      - app:/app/
+      - api:/app/api/
+    networks:
+      - beanstalk_network
+    expose:
+      - 8000
+ celery_worker:
+    container_name: celery_worker_test
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    command: ["celery","-A",
+
+
+
+
+
+
+
+
+
+
+
+
+
+]
+    env_file: .env
+    restart: unless-stopped
+    depends_on:
+      - beanstalk_api
+      - rabbitmq
+    volumes:
+      - ./static:/static
+      - app:/app/
+    networks:
+      - beanstalk_network 
+volumes:
+  app:
+  api:
+
+networks:
+  beanstalk_network:
+    driver: bridge

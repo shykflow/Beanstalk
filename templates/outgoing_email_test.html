@@ -1,0 +1,11 @@
+{% extends "outgoing_email_base.html" %}
+
+{% block title %}Beanstalk: Test Email{% endblock %}
+
+{% block content %}
+    <!-- <img src="cid:logo"> -->
+    <h1>This is a test email from Beanstalk!</h1>
+    <p>
+        Here's a link to click on: <a href="{{link}}">{{link}}</a>
+    </p>
+{% endblock %}
